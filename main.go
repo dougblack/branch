@@ -65,6 +65,8 @@ func Store() {
 	if err != nil {
 		panic(err)
 	}
+
+	fmt.Printf("branch: stored `%s`\n", branch)
 }
 
 // Restore to last known working branch.
@@ -77,6 +79,7 @@ func Restore() {
 		fmt.Println("error: invalid branch")
 		os.Exit(1)
 	}
+	fmt.Printf("branch: restored `%s`\n", branch)
 }
 
 func main() {
