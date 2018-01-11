@@ -9,22 +9,17 @@ import (
 	"strings"
 )
 
-const filePath = "/tmp/working"
+const filePath = "/tmp/branches"
 
 type Projects map[string]string
 
-func (p Projects) branch(project string) string {
-	return p[project]
-}
-
-func On(branch string) {
-	projects := read()
-	projects[currentProject()] = branch
-	dl, err := json.Marshal(projects)
-	err = ioutil.WriteFile(filePath, dl, 0644)
-	if err != nil {
-		panic(err)
+func run(args ...string) (output string, err error) {
+	cmd := exec.Command(args[0], args[1:]...)
+	raw, err := cmd.Output()
+	if err == nil {
+		output = strings.TrimSpace(string(raw))
 	}
+	return output, err
 }
 
 func read() (projects Projects) {
@@ -33,31 +28,51 @@ func read() (projects Projects) {
 	}
 	content, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		panic(err)
+		fmt.Printf("error: failed to read %s\n", filePath)
+		os.Exit(1)
 	}
 	err = json.Unmarshal(content, &projects)
 	return projects
 }
 
-func resolve(project string) (branch string) {
-	return read().branch(project)
-}
-
-func currentProject() (project string) {
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-	raw, err := cmd.Output()
+func currentProject() string {
+	output, err := run("git", "rev-parse", "--show-toplevel")
 	if err != nil {
 		fmt.Println("error: not a git repository")
 		os.Exit(1)
 	}
-	output := strings.TrimSpace(string(raw))
 	return output
 }
 
-func Switch() {
-	branch := resolve(currentProject())
-	cmd := exec.Command("git", "checkout", branch)
-	err := cmd.Run()
+func currentBranch() string {
+	output, err := run("git", "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		fmt.Println("error: not a git repository")
+		os.Exit(1)
+	}
+	return output
+}
+
+// Store current working branch.
+func Store() {
+	projects := read()
+	project := currentProject()
+	branch := currentBranch()
+	projects[project] = branch
+
+	bytes, err := json.Marshal(projects)
+	err = ioutil.WriteFile(filePath, bytes, 0644)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// Restore to last known working branch.
+func Restore() {
+	projects := read()
+	project := currentProject()
+	branch := projects[project]
+	_, err := run("git", "checkout", branch)
 	if err != nil {
 		fmt.Println("error: invalid branch")
 		os.Exit(1)
@@ -65,10 +80,9 @@ func Switch() {
 }
 
 func main() {
-	if len(os.Args) > 1 {
-		branch := os.Args[1]
-		On(branch)
+	if currentBranch() != "master" {
+		Store()
 	} else {
-		Switch()
+		Restore()
 	}
 }
